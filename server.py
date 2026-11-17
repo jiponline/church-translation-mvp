@@ -79,7 +79,7 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def do_POST(self):
-        global gateway_state
+        global gateway_state, sequence
         if self.path in ("/api/gateway/register", "/api/gateway/heartbeat"):
             payload = self._read_json()
             now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -104,6 +104,23 @@ class Handler(BaseHTTPRequestHandler):
                 gateway_state["chunks"] += 1
                 gateway_state["bytes_received"] += length
             self._json(202, {"accepted": True, "bytes": length})
+            return
+        if self.path == "/api/translation":
+            payload = self._read_json()
+            sequence += 1
+            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            for language, text in (payload.get("translations") or {}).items():
+                send_event({
+                    "type": "text.segment",
+                    "session_id": "live-session",
+                    "sequence": sequence,
+                    "language": language,
+                    "source_text": payload.get("source_text", ""),
+                    "final": True,
+                    "text": text,
+                    "generated_at": now,
+                })
+            self._json(202, {"accepted": True, "sequence": sequence})
             return
         self.send_error(404)
 
