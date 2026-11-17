@@ -10,6 +10,15 @@ PORT = int(os.environ.get("PORT", "8000"))
 listeners = []
 lock = threading.Lock()
 sequence = 0
+gateway_state = {
+    "connected": False,
+    "gateway_id": None,
+    "name": None,
+    "source": None,
+    "last_seen": None,
+    "chunks": 0,
+    "bytes_received": 0,
+}
 
 translations = {
     "th": "ยินดีต้อนรับทุกท่าน นี่คือการสาธิตระบบแปลภาษาแบบสด",
@@ -53,7 +62,60 @@ def demo_loop():
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _json(self, status, payload):
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _read_json(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return {}
+
+    def do_POST(self):
+        global gateway_state
+        if self.path in ("/api/gateway/register", "/api/gateway/heartbeat"):
+            payload = self._read_json()
+            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            with lock:
+                gateway_state.update({
+                    "connected": True,
+                    "gateway_id": payload.get("gateway_id") or gateway_state["gateway_id"] or "browser-gateway",
+                    "name": payload.get("name") or gateway_state["name"] or "Church Audio Gateway 1",
+                    "source": payload.get("source") or gateway_state["source"] or "browser",
+                    "last_seen": now,
+                })
+                result = dict(gateway_state)
+            self._json(200, result)
+            return
+        if self.path == "/api/gateway/audio":
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            with lock:
+                gateway_state["connected"] = True
+                gateway_state["last_seen"] = now
+                gateway_state["chunks"] += 1
+                gateway_state["bytes_received"] += length
+            self._json(202, {"accepted": True, "bytes": length})
+            return
+        self.send_error(404)
+
     def do_GET(self):
+        if self.path == "/api/gateway/status":
+            with lock:
+                result = dict(gateway_state)
+                if result["last_seen"]:
+                    last = time.mktime(time.strptime(result["last_seen"], "%Y-%m-%dT%H:%M:%SZ"))
+                    result["connected"] = time.time() - last < 15
+            self._json(200, result)
+            return
         if self.path == "/events":
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -70,7 +132,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
             return
-        path = "/index.html" if self.path == "/" else ("/admin.html" if self.path == "/admin" else self.path)
+        path = "/index.html" if self.path == "/" else ("/admin.html" if self.path == "/admin" else ("/gateway.html" if self.path == "/gateway" else self.path))
         file_path = ROOT / "public" / path.lstrip("/")
         if not file_path.exists():
             file_path = ROOT / path.lstrip("/")

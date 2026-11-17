@@ -73,6 +73,7 @@
       </div>
       <button id="saveInput">บันทึกแหล่งเสียง</button>
       <button id="testInput" class="secondary">ทดสอบการเชื่อมต่อ</button>
+      <a href="/gateway" target="_blank"><button class="secondary">เปิด Audio Gateway</button></a>
     </section>
 
     <section>
@@ -107,6 +108,14 @@
         document.querySelector('#gatewayStatus').textContent = 'ทดสอบสำเร็จ (เดโม)';
         message.textContent = 'การทดสอบนี้เป็นเดโม ยังไม่ได้รับเสียงจริงจาก Dante หรือมิกเซอร์';
       };
+      async function refreshGateway() {
+        try {
+          const gateway = await fetch('/api/gateway/status').then(response => response.json());
+          document.querySelector('#gatewayStatus').textContent = gateway.connected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ';
+        } catch (_) {}
+      }
+      refreshGateway();
+      setInterval(refreshGateway, 5000);
       document.querySelector('#copy').onclick = async () => { await navigator.clipboard.writeText(listenerUrl.value); message.textContent = 'คัดลอกลิงก์แล้ว'; };
     </script>
   </body>

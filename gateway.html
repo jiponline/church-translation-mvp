@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Church Audio Gateway</title>
+    <style>
+      :root { font-family: system-ui, sans-serif; color: #182235; }
+      body { max-width: 760px; margin: 0 auto; padding: 24px; background: #f5f7fb; }
+      header, section { background: white; border-radius: 16px; padding: 20px; margin: 16px 0; box-shadow: 0 4px 18px #18243a12; }
+      h1 { margin: 0 0 4px; } h2 { margin-top: 0; }
+      .muted { color: #687386; } .status { color: #16834b; font-weight: 700; }
+      label { display: block; margin: 12px 0 6px; font-weight: 700; }
+      input, select { width: 100%; box-sizing: border-box; padding: 11px; border: 1px solid #ccd3df; border-radius: 10px; font-size: 1rem; }
+      button { border: 0; border-radius: 10px; padding: 11px 16px; background: #3157d5; color: white; font-size: 1rem; cursor: pointer; margin: 8px 8px 0 0; }
+      button.danger { background: #bd3c49; } button.secondary { background: #eef1f7; color: #27334a; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+      .metric { background: #f7f8fc; border-radius: 12px; padding: 14px; } .metric strong { display: block; font-size: 1.35rem; margin-top: 4px; }
+      #message { margin-top: 12px; min-height: 1.5em; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Church Audio Gateway</h1>
+      <div class="muted">เครื่องนี้ใช้รับเสียงจาก USB, Line-in หรือไมโครโฟน แล้วส่งเข้า Church Translation</div>
+    </header>
+    <section>
+      <h2>ตั้งค่าแหล่งเสียง</h2>
+      <label for="name">ชื่อเครื่อง</label>
+      <input id="name" value="Church Audio Gateway 1" />
+      <label for="source">แหล่งเสียง</label>
+      <select id="source">
+        <option value="browser">ไมโครโฟนของ Browser</option>
+        <option value="usb">USB Audio Interface</option>
+        <option value="linein">Line-in</option>
+      </select>
+      <p class="muted">เริ่มจากโหมด Browser เพื่อทดสอบฟรีได้ทันที หากใช้ USB/Line-in ให้เลือกอุปกรณ์เสียงตอนเบราว์เซอร์ถามสิทธิ์</p>
+      <button id="start">เริ่มส่งเสียง</button>
+      <button id="stop" class="danger" disabled>หยุดส่งเสียง</button>
+      <div id="message" class="muted"></div>
+    </section>
+    <section>
+      <h2>สถานะ</h2>
+      <div class="grid">
+        <div class="metric">การเชื่อมต่อ<strong id="status" class="status">ยังไม่เริ่ม</strong></div>
+        <div class="metric">ชิ้นเสียงที่ส่ง<strong id="chunks">0</strong></div>
+        <div class="metric">ข้อมูลที่ส่ง<strong id="bytes">0 B</strong></div>
+      </div>
+    </section>
+    <script>
+      let recorder, stream, timer;
+      const $ = id => document.querySelector(id);
+      const formatBytes = n => n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`;
+      async function register() {
+        await fetch('/api/gateway/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: $('#name').value, source: $('#source').value}) });
+      }
+      async function sendChunk(blob) {
+        const response = await fetch('/api/gateway/audio', { method: 'POST', headers: {'Content-Type': blob.type || 'audio/webm'}, body: blob });
+        if (!response.ok) throw new Error('ส่งเสียงไม่สำเร็จ');
+        const data = await response.json();
+        $('#chunks').textContent = Number($('#chunks').textContent) + 1;
+        $('#bytes').textContent = formatBytes(Number($('#bytes').dataset.total || 0) + data.bytes);
+        $('#bytes').dataset.total = Number($('#bytes').dataset.total || 0) + data.bytes;
+      }
+      $('#start').onclick = async () => {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({audio: true});
+          await register();
+          recorder = new MediaRecorder(stream);
+          recorder.ondataavailable = event => { if (event.data.size) sendChunk(event.data).catch(error => $('#message').textContent = error.message); };
+          recorder.start(2000);
+          $('#status').textContent = 'กำลังส่งเสียง'; $('#message').textContent = 'กำลังส่งเสียงจากอุปกรณ์นี้เข้า gateway';
+          $('#start').disabled = true; $('#stop').disabled = false;
+        } catch (error) { $('#message').textContent = 'เปิดไมโครโฟนไม่ได้: ' + error.message; }
+      };
+      $('#stop').onclick = () => {
+        if (recorder && recorder.state !== 'inactive') recorder.stop();
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        $('#status').textContent = 'หยุดแล้ว'; $('#message').textContent = 'หยุดส่งเสียงแล้ว';
+        $('#start').disabled = false; $('#stop').disabled = true;
+      };
+    </script>
+  </body>
+</html>
