@@ -55,6 +55,27 @@
     </section>
 
     <section>
+      <h2>แหล่งเสียงจากคริสตจักร</h2>
+      <p class="muted">เลือกวิธีที่ Audio Gateway จะรับเสียงจากระบบเสียงของคริสตจักร</p>
+      <label for="inputMode">ประเภทแหล่งเสียง</label>
+      <select id="inputMode">
+        <option value="dante">Dante / Dante Virtual Soundcard</option>
+        <option value="usb">USB จากมิกเซอร์หรือ USB Audio Interface</option>
+        <option value="linein">Line-in ผ่านคอมพิวเตอร์</option>
+        <option value="browser">ไมโครโฟนของ Browser สำหรับทดสอบ</option>
+        <option value="rtmp">RTMP / Encoder</option>
+      </select>
+      <label for="gatewayName">ชื่อเครื่อง Audio Gateway</label>
+      <input id="gatewayName" value="Church Audio Gateway 1" />
+      <div class="grid">
+        <div class="metric">สถานะ Gateway<strong id="gatewayStatus" class="status">ยังไม่เชื่อมต่อ</strong></div>
+        <div class="metric">แหล่งเสียง<strong id="selectedInput">Dante</strong></div>
+      </div>
+      <button id="saveInput">บันทึกแหล่งเสียง</button>
+      <button id="testInput" class="secondary">ทดสอบการเชื่อมต่อ</button>
+    </section>
+
+    <section>
       <h2>ลิงก์สำหรับผู้ฟัง</h2>
       <p class="muted">ส่งลิงก์นี้ให้ผู้ฟัง หรือเปลี่ยนเป็น QR Code ได้ในขั้นถัดไป</p>
       <input id="listenerUrl" readonly />
@@ -74,6 +95,18 @@
       };
       document.querySelector('#start').onclick = () => { status.textContent = 'กำลังถ่ายทอด'; message.textContent = 'เริ่ม session ทดลองแล้ว'; };
       document.querySelector('#stop').onclick = () => { status.textContent = 'หยุดแล้ว'; message.textContent = 'หยุด session ทดลองแล้ว'; };
+      document.querySelector('#inputMode').onchange = (event) => {
+        const labels = { dante: 'Dante', usb: 'USB Audio', linein: 'Line-in', browser: 'Browser microphone', rtmp: 'RTMP / Encoder' };
+        document.querySelector('#selectedInput').textContent = labels[event.target.value];
+      };
+      document.querySelector('#saveInput').onclick = () => {
+        document.querySelector('#gatewayStatus').textContent = 'บันทึกแล้ว';
+        message.textContent = 'บันทึกแหล่งเสียงและชื่อ Audio Gateway แล้ว';
+      };
+      document.querySelector('#testInput').onclick = () => {
+        document.querySelector('#gatewayStatus').textContent = 'ทดสอบสำเร็จ (เดโม)';
+        message.textContent = 'การทดสอบนี้เป็นเดโม ยังไม่ได้รับเสียงจริงจาก Dante หรือมิกเซอร์';
+      };
       document.querySelector('#copy').onclick = async () => { await navigator.clipboard.writeText(listenerUrl.value); message.textContent = 'คัดลอกลิงก์แล้ว'; };
     </script>
   </body>
