@@ -70,7 +70,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
             return
-        path = "/index.html" if self.path == "/" else self.path
+        path = "/index.html" if self.path == "/" else ("/admin.html" if self.path == "/admin" else self.path)
         file_path = ROOT / "public" / path.lstrip("/")
         if not file_path.exists():
             file_path = ROOT / path.lstrip("/")

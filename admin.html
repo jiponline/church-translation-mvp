@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Church Translation — ผู้ดูแล</title>
+    <style>
+      :root { font-family: system-ui, sans-serif; color: #182235; }
+      body { max-width: 900px; margin: 0 auto; padding: 24px; background: #f5f7fb; }
+      header, section { background: white; border-radius: 16px; padding: 20px; margin: 16px 0; box-shadow: 0 4px 18px #18243a12; }
+      h1 { margin: 0 0 4px; } h2 { margin-top: 0; }
+      .muted { color: #687386; } .status { color: #16834b; font-weight: 700; }
+      label { display: block; margin: 12px 0 6px; font-weight: 700; }
+      input, select { width: 100%; box-sizing: border-box; padding: 11px; border: 1px solid #ccd3df; border-radius: 10px; font-size: 1rem; }
+      button { border: 0; border-radius: 10px; padding: 11px 16px; background: #3157d5; color: white; font-size: 1rem; cursor: pointer; margin: 8px 8px 0 0; }
+      button.secondary { background: #eef1f7; color: #27334a; } button.danger { background: #bd3c49; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+      .metric { background: #f7f8fc; border-radius: 12px; padding: 14px; } .metric strong { display: block; font-size: 1.5rem; margin-top: 4px; }
+      #message { margin-top: 12px; min-height: 1.5em; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Church Translation — ผู้ดูแล</h1>
+      <div class="muted">แผงควบคุมรุ่นทดลองสำหรับคริสตจักร</div>
+    </header>
+
+    <section>
+      <h2>สถานะระบบ</h2>
+      <div class="grid">
+        <div class="metric">สถานะ session<strong id="sessionStatus" class="status">พร้อมใช้งาน</strong></div>
+        <div class="metric">ผู้ฟัง<strong id="listeners">0</strong></div>
+        <div class="metric">ภาษาปลายทาง<strong id="languageCount">4</strong></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>ตั้งค่าการแปล</h2>
+      <label for="church">ชื่อคริสตจักร</label>
+      <input id="church" value="Church Translation Demo" />
+      <label for="source">ภาษาต้นทาง</label>
+      <select id="source"><option>ตรวจจับอัตโนมัติ</option><option>ไทย</option><option>English</option><option>中文</option><option>한국어</option><option>日本語</option></select>
+      <label>ภาษาเป้าหมาย</label>
+      <div class="grid">
+        <label><input type="checkbox" value="th" checked /> ไทย</label>
+        <label><input type="checkbox" value="en" checked /> English</label>
+        <label><input type="checkbox" value="zh" checked /> 中文</label>
+        <label><input type="checkbox" value="ko" checked /> 한국어</label>
+        <label><input type="checkbox" value="ja" checked /> 日本語</label>
+      </div>
+      <button id="save">บันทึกการตั้งค่า</button>
+      <button id="start">เริ่ม session ทดลอง</button>
+      <button id="stop" class="danger">หยุด session</button>
+      <div id="message" class="muted"></div>
+    </section>
+
+    <section>
+      <h2>ลิงก์สำหรับผู้ฟัง</h2>
+      <p class="muted">ส่งลิงก์นี้ให้ผู้ฟัง หรือเปลี่ยนเป็น QR Code ได้ในขั้นถัดไป</p>
+      <input id="listenerUrl" readonly />
+      <button id="copy">คัดลอกลิงก์</button>
+      <a href="/" target="_blank"><button class="secondary">เปิดหน้าผู้ฟัง</button></a>
+    </section>
+
+    <script>
+      const status = document.querySelector('#sessionStatus');
+      const message = document.querySelector('#message');
+      const listenerUrl = document.querySelector('#listenerUrl');
+      listenerUrl.value = location.origin + '/';
+      const checked = () => [...document.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value);
+      document.querySelector('#save').onclick = () => {
+        document.querySelector('#languageCount').textContent = checked().length;
+        message.textContent = 'บันทึกการตั้งค่าสำหรับ session ทดลองแล้ว';
+      };
+      document.querySelector('#start').onclick = () => { status.textContent = 'กำลังถ่ายทอด'; message.textContent = 'เริ่ม session ทดลองแล้ว'; };
+      document.querySelector('#stop').onclick = () => { status.textContent = 'หยุดแล้ว'; message.textContent = 'หยุด session ทดลองแล้ว'; };
+      document.querySelector('#copy').onclick = async () => { await navigator.clipboard.writeText(listenerUrl.value); message.textContent = 'คัดลอกลิงก์แล้ว'; };
+    </script>
+  </body>
+</html>
