@@ -169,7 +169,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    threading.Thread(target=demo_loop, daemon=True).start()
+    # Keep the public service quiet until a real gateway publishes a translation.
+    # Set DEMO_MODE=1 only when intentionally running the sample feed locally.
+    if os.environ.get("DEMO_MODE") == "1":
+        threading.Thread(target=demo_loop, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"Church Translation MVP running on port {PORT}")
     server.serve_forever()
