@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Church Translation MVP</title>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, sans-serif; }
+      body { max-width: 760px; margin: 0 auto; padding: 24px; background: #f6f7fb; color: #1d2433; }
+      .card { background: white; border-radius: 16px; padding: 20px; margin: 16px 0; box-shadow: 0 4px 18px #18243a12; }
+      h1 { margin-bottom: 4px; } .muted { color: #687386; }
+      button { border: 0; border-radius: 10px; padding: 10px 14px; background: #3157d5; color: white; font-size: 1rem; }
+      select { padding: 10px; border-radius: 10px; border: 1px solid #ccd3df; }
+      .line { padding: 12px 0; border-bottom: 1px solid #edf0f5; }
+      .lang { font-weight: 700; color: #3157d5; font-size: .8rem; text-transform: uppercase; }
+      #status { font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Church Translation</h1>
+    <p class="muted">MVP ทดลองระบบแปลสดสำหรับผู้ฟังบนมือถือ</p>
+    <div class="card">
+      <p>สถานะระบบ: <span id="status">ยังไม่ได้เชื่อมต่อ</span></p>
+      <label>ภาษาที่ต้องการอ่าน: 
+        <select id="language"><option value="en">English</option><option value="zh">中文</option><option value="ko">한국어</option><option value="ja">日本語</option><option value="th">ไทย</option></select>
+      </label>
+      <button id="connect">เชื่อมต่อระบบ</button>
+    </div>
+    <div class="card"><h2>คำแปลสด</h2><div id="feed"><p class="muted">กดเชื่อมต่อเพื่อเริ่มรับข้อความ</p></div></div>
+    <script>
+      let socket;
+      const feed = document.querySelector('#feed');
+      const status = document.querySelector('#status');
+      const language = document.querySelector('#language');
+      document.querySelector('#connect').onclick = () => {
+        if (socket && socket.readyState === WebSocket.OPEN) return;
+        const events = new EventSource('/events');
+        events.onopen = () => status.textContent = 'เชื่อมต่อแล้ว';
+        events.onerror = () => status.textContent = 'กำลังเชื่อมต่อใหม่';
+        events.onmessage = ({ data }) => {
+          const event = JSON.parse(data);
+          if (event.type !== 'text.segment' || event.language !== language.value) return;
+          if (feed.querySelector('.muted')) feed.innerHTML = '';
+          const row = document.createElement('div');
+          row.className = 'line';
+          row.innerHTML = `<div class="lang">${event.language} · #${event.sequence}</div><div>${event.text}</div>`;
+          feed.prepend(row);
+        };
+      };
+    </script>
+  </body>
+</html>

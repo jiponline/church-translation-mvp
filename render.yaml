@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: church-translation-mvp
+    runtime: python
+    buildCommand: ""
+    startCommand: "python3 server.py"
+    plan: free
