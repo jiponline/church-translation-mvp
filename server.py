@@ -72,6 +72,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         path = "/index.html" if self.path == "/" else self.path
         file_path = ROOT / "public" / path.lstrip("/")
+        if not file_path.exists():
+            file_path = ROOT / path.lstrip("/")
         if file_path.exists() and file_path.is_file():
             content = file_path.read_bytes()
             content_type = "text/html; charset=utf-8" if file_path.suffix == ".html" else "text/plain; charset=utf-8"
