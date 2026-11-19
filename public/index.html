@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#4b3fd8" />
+    <title>Church Translation</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      body { padding-bottom: 110px; }
+      .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 4px 12px; }
+      .brand { display: flex; align-items: center; gap: 10px; }
+      .logo { width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), #7a5cff); display: grid; place-items: center; color: #fff; font-size: 1.1rem; }
+      .live { display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--mute); background: var(--surface); padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow); }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mute); }
+      .live.on .dot { background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: pulse 2s infinite; }
+      @keyframes pulse { 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+      .pills { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; scrollbar-width: none; }
+      .pills::-webkit-scrollbar { display: none; }
+      .pill { flex: 0 0 auto; margin: 0; padding: 10px 18px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font-weight: 600; }
+      .pill[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); }
+      .stage { min-height: 46vh; padding: 24px 22px; }
+      .empty { text-align: center; color: var(--mute); padding: 12vh 0; }
+      .empty .big { font-size: 2.2rem; margin-bottom: 8px; }
+      .line { font-size: calc(1.15rem * var(--scale, 1)); line-height: 1.6; padding: 14px 0; border-top: 1px solid var(--line); color: var(--mute); animation: in .35s ease; }
+      .line:first-child { border-top: 0; padding-top: 0; color: var(--ink); font-size: calc(1.7rem * var(--scale, 1)); font-weight: 600; line-height: 1.5; letter-spacing: -.005em; }
+      .line:nth-child(2) { color: color-mix(in srgb, var(--ink) 70%, var(--mute)); }
+      .line.err { color: var(--bad); font-size: 1rem; }
+      @keyframes in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+      .status-lines { pointer-events: none; background: var(--surface); border-radius: 12px; padding: 2px 12px; margin-bottom: 8px; font-size: .78rem; }
+      .status-lines:has(.note:empty + .note:empty) { display: none; }
+      .dock { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 40%); pointer-events: none; }
+      .dock .bar { pointer-events: auto; display: flex; gap: 8px; align-items: center; background: var(--surface); padding: 8px; border-radius: 999px; box-shadow: var(--shadow), 0 0 0 1px var(--line); }
+      .dock button { margin: 0; }
+      #audio[aria-pressed=true] { background: var(--ok); color: #fff; }
+      .note { text-align: center; font-size: .82rem; color: var(--mute); margin: 8px 0 0; min-height: 1.2em; }
+      @media (prefers-reduced-motion: reduce) { .line, .live.on .dot { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <div class="brand"><div class="logo">✦</div><h1>Church Translation</h1></div>
+      <span class="live" id="live"><span class="dot"></span><span id="status">กำลังเชื่อมต่อ</span></span>
+    </div>
+
+    <div class="pills" id="pills" role="group" aria-label="เลือกภาษา"></div>
+
+    <div class="card stage" id="feed" aria-live="polite">
+      <div class="empty"><div class="big">🕊️</div>รอข้อความจากผู้พูด…</div>
+    </div>
+    <div class="dock"><div class="status-lines"><p class="note" id="note"></p><p class="note" id="diag"></p></div><div class="bar">
+      <button class="secondary" id="smaller" aria-label="ลดขนาดตัวอักษร">A−</button>
+      <button id="audio" class="secondary" aria-pressed="false">🔈 เปิดเสียงอ่าน</button>
+      <button class="secondary" id="bigger" aria-label="เพิ่มขนาดตัวอักษร">A+</button>
+    </div></div>
+
+    <script>
+      const LANGS = [['th','ไทย','th-TH'],['en','English','en-US'],['zh','中文','zh-CN'],['ko','한국어','ko-KR'],['ja','日本語','ja-JP']];
+      const $ = s => document.querySelector(s);
+      const store = { get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} } };
+      const guess = (navigator.language || 'en').slice(0, 2);
+      let lang = LANGS.some(l => l[0] === store.get('lang')) ? store.get('lang') : (LANGS.some(l => l[0] === guess) ? guess : 'en');
+      let scale = Number(store.get('scale')) || 1;
+      let audioOn = false, source, queue = [];
+      document.documentElement.style.setProperty('--scale', scale);
+
+      // language pills
+      for (const [code, name] of LANGS) {
+        const b = document.createElement('button'); b.className = 'pill'; b.textContent = name; b.dataset.code = code;
+        b.onclick = () => { lang = code; store.set('lang', code); render(); connect(); };
+        $('#pills').append(b);
+      }
+      const render = () => document.querySelectorAll('.pill').forEach(b => b.setAttribute('aria-pressed', b.dataset.code === lang));
+      render();
+
+      // font size
+      const setScale = v => { scale = Math.min(1.8, Math.max(.8, v)); document.documentElement.style.setProperty('--scale', scale); store.set('scale', scale); };
+      $('#bigger').onclick = () => setScale(scale + .15); $('#smaller').onclick = () => setScale(scale - .15);
+
+      // spoken audio (runs on the listener's own device)
+      const locale = () => LANGS.find(l => l[0] === lang)[2];
+      function pickVoice() { const v = speechSynthesis.getVoices().filter(x => x.lang.replace('_', '-').toLowerCase().startsWith(lang)); return v.find(x => x.localService) || v[0]; }
+      let talking = false, watchdog; // own flag: speechSynthesis.speaking can get stuck true on some browsers
+      function speakNext() {
+        if (!audioOn || talking || !queue.length) return;
+        talking = true;
+        const u = new SpeechSynthesisUtterance(queue.shift()); u.lang = locale(); const v = pickVoice(); if (v) u.voice = v;
+        const done = () => { clearTimeout(watchdog); talking = false; speakNext(); };
+        const diag = ev => { const all = speechSynthesis.getVoices(); $('#diag').textContent = `[${ev}] เสียงในเครื่อง ${all.length} ตัว, ภาษา ${lang}: ${all.filter(x => x.lang.toLowerCase().startsWith(lang)).length} ตัว`; };
+        diag('สั่งอ่าน');
+        u.onstart = () => { diag('เริ่มอ่าน'); if (!/iPhone|iPad/.test(navigator.userAgent)) $('#note').textContent = '🔊 กำลังอ่านออกเสียง' + (v ? '' : ' (เสียงเริ่มต้นของเครื่อง)'); };
+        u.onend = () => { diag('อ่านจบ'); done(); };
+        u.onerror = ev => { diag('error ' + ev.error); $('#note').textContent = 'เสียงอ่านผิดพลาด: ' + (ev.error || 'unknown'); done(); };
+        clearTimeout(watchdog); watchdog = setTimeout(() => { speechSynthesis.cancel(); done(); }, 15000); // never stall the queue
+        speechSynthesis.speak(u);
+      }
+      function enqueue(text) {
+        queue.push(text);
+        while (queue.length > 2) queue.shift(); // fall behind? skip old sentences, stay near live
+        speakNext();
+      }
+      $('#audio').onclick = () => {
+        if (!('speechSynthesis' in window)) { $('#note').textContent = 'เบราว์เซอร์นี้ไม่รองรับเสียงอ่าน'; return; }
+        audioOn = !audioOn; $('#audio').setAttribute('aria-pressed', audioOn);
+        $('#audio').textContent = audioOn ? '🔊 กำลังอ่านออกเสียง' : '🔈 เปิดเสียงอ่าน';
+        speechSynthesis.cancel(); queue = []; talking = false;
+        if (audioOn) {
+          // iPhone mutes speechSynthesis in silent/vibrate mode (tested: audioSession/silent-audio tricks don't help)
+          if (/iPhone|iPad/.test(navigator.userAgent)) $('#note').textContent = '🎧 iPhone: ปิดโหมดเงียบ/สั่นที่ข้างเครื่อง หรือใส่หูฟัง ถึงจะได้ยินเสียง';
+          // spoken confirmation inside the tap: unlocks audio on iOS and proves the device can play it
+          const hello = { th: 'เปิดเสียงแล้ว', en: 'Audio is on', zh: '声音已开启', ko: '소리가 켜졌습니다', ja: '音声をオンにしました' }[lang];
+          queue.push(hello); speakNext();
+          setTimeout(() => { if (!pickVoice()) $('#note').textContent = 'เครื่องนี้ยังไม่มีเสียงอ่านภาษานี้ — ลองติดตั้งเสียงในตั้งค่าเครื่อง'; }, 600);
+        } else $('#note').textContent = '';
+      };
+
+      // live text
+      function connect() {
+        if (source) source.close();
+        speechSynthesis.cancel?.(); queue = [];
+        $('#feed').innerHTML = '<div class="empty"><div class="big">🕊️</div>รอข้อความจากผู้พูด…</div>';
+        source = new EventSource('/events?lang=' + lang); // browser resends Last-Event-ID on reconnect
+        source.onopen = () => { $('#status').textContent = 'สด'; $('#live').classList.add('on'); };
+        source.onerror = () => { $('#status').textContent = 'กำลังเชื่อมต่อใหม่…'; $('#live').classList.remove('on'); };
+        source.onmessage = ({ data }) => {
+          const e = JSON.parse(data);
+          if (e.type !== 'text.segment') return;
+          const feed = $('#feed'); const empty = feed.querySelector('.empty'); if (empty) empty.remove();
+          const row = document.createElement('div'); row.className = 'line';
+          if (e.text) row.textContent = e.text; else { row.classList.add('err'); row.textContent = 'ยังแปลประโยคนี้ไม่ได้'; }
+          feed.prepend(row);
+          while (feed.children.length > 40) feed.lastChild.remove();
+          if (e.text && !e.replay) enqueue(e.text); // server marks replayed history; never read it aloud
+        };
+      }
+      connect();
+    </script>
+  </body>
+</html>

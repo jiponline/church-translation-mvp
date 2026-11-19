@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Church Translation — Subtitles</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      html.live, html.live body { margin: 0; max-width: none; padding: 0; height: 100%; overflow: hidden; background: var(--screen-bg, #000); }
+      .stage { position: fixed; left: 0; right: 0; display: flex; justify-content: center; padding: 2.2vh 4vw; pointer-events: none; }
+      .stage.bottom { bottom: 0; } .stage.top { top: 0; }
+      /* Sukhumvit Set ships with macOS/iOS (not a web font); other systems fall back to the default stack */
+      .cap { font-family: var(--cap-font, "Sukhumvit Set"), "Sukhumvit Set", "Noto Sans Thai",
+          "PingFang SC", "Microsoft YaHei", "Hiragino Sans", "Meiryo", "Apple SD Gothic Neo", "Malgun Gothic",
+          ui-sans-serif, system-ui, sans-serif;
+        max-width: 92vw; text-align: center; color: #fff; font-weight: 700; line-height: 1.35;
+        font-size: min(calc(var(--fs, 3) * 1vw), calc(var(--fs, 3) * 1.9vh)); text-shadow: 0 0 .12em #000, 0 .04em .14em #000, 0 0 .3em rgba(0,0,0,.9);
+        opacity: 0; transition: opacity .25s ease; -webkit-text-stroke: .02em rgba(0,0,0,.6); paint-order: stroke fill; }
+      .cap.show { opacity: 1; }
+      .cap.band { background: rgba(0,0,0,.62); padding: .25em .7em; border-radius: .25em; text-shadow: none; -webkit-text-stroke: 0; }
+      .setup { max-width: 560px; margin: 0 auto; }
+      .url { word-break: break-all; font-family: ui-monospace, monospace; font-size: .85rem; background: var(--surface-2); padding: 12px; border-radius: 12px; margin-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="setup" class="setup" hidden>
+      <header><h1>จอซับไตเติ้ล</h1><div class="muted">คำแปลขึ้นเป็นบรรทัดสั้นๆ สำหรับฉายบนจอโบสถ์</div></header>
+      <section>
+        <label for="lang">ภาษาที่แสดง</label>
+        <select id="lang"><option value="th">ไทย</option><option value="en">English</option><option value="zh">中文</option><option value="ko">한국어</option><option value="ja">日本語</option></select>
+        <label for="pos">ตำแหน่ง</label>
+        <select id="pos"><option value="bottom">ล่างจอ</option><option value="top">บนสุดของจอ</option></select>
+        <label for="font">ฟอนต์</label>
+        <select id="font">
+          <option value="sukhumvit">Sukhumvit Set (ไม่มีหัว · มีเฉพาะ Mac)</option>
+          <option value="sarabun">Sarabun (มีหัว · อ่านง่าย)</option>
+          <option value="kanit">Kanit (ไม่มีหัว · หนา)</option>
+          <option value="prompt">Prompt (ไม่มีหัว · กลม)</option>
+          <option value="noto">Noto Sans Thai (ไม่มีหัว · เรียบ)</option>
+        </select>
+        <p class="muted" id="fontPreview" style="font-size:1.6rem;font-weight:700;margin:8px 0 0">ตัวอย่าง: พระเจ้าทรงรักท่าน God loves you</p>
+        <label for="bg">พื้นหลัง</label>
+        <select id="bg"><option value="black">ดำ</option><option value="green">เขียว (Chroma key)</option><option value="transparent">โปร่งใส (OBS Browser Source)</option></select>
+        <label for="fs">ขนาดตัวอักษร: <span id="fsv">3</span></label>
+        <input id="fs" type="range" min="1.5" max="6" step="0.25" value="3" style="width:100%" />
+        <label><input type="checkbox" id="band" /> แถบดำโปร่งหลังตัวอักษร</label>
+        <div class="url" id="url"></div>
+        <button id="open">เปิดหน้าจอซับไตเติ้ล</button>
+        <button class="secondary" id="copy">คัดลอกลิงก์</button>
+        <p class="muted">เปิดแล้วกด F11 (เต็มจอ) บนคอมพิวเตอร์ที่ต่อโปรเจกเตอร์ หรือใส่ลิงก์นี้เป็น Browser Source ใน OBS</p>
+      </section>
+    </div>
+    <div class="stage bottom" id="stage"><div class="cap" id="cap"></div></div>
+
+    <script>
+      const q = new URLSearchParams(location.search), $ = s => document.querySelector(s);
+      const LANGS = ['th', 'en', 'zh', 'ko', 'ja'];
+      // Web fonts come from Google Fonts so they look the same on Mac and Windows; Sukhumvit Set is a
+      // system font (macOS/iOS only) and needs no download.
+      const FONTS = { sukhumvit: ['Sukhumvit Set', null], sarabun: ['Sarabun', 'Sarabun:wght@600;700'],
+        kanit: ['Kanit', 'Kanit:wght@500;600'], prompt: ['Prompt', 'Prompt:wght@500;600'],
+        noto: ['Noto Sans Thai', 'Noto+Sans+Thai:wght@600;700'] };
+      function useFont(key) {
+        const [family, gf] = FONTS[key] || FONTS.sukhumvit;
+        if (gf && !document.querySelector(`link[data-gf="${key}"]`)) {
+          const l = document.createElement('link'); l.rel = 'stylesheet'; l.dataset.gf = key;
+          l.href = `https://fonts.googleapis.com/css2?family=${gf}&display=swap`; document.head.append(l);
+        }
+        document.documentElement.style.setProperty('--cap-font', `"${family}"`);
+        return family;
+      }
+
+      if (location.protocol === 'file:') {
+        // opened straight from disk: relative links and the live stream cannot work
+        $('#stage').hidden = true; $('#setup').hidden = false;
+        $('#setup').innerHTML = '<header><h1>เปิดผิดวิธี</h1></header><section><p>หน้านี้ต้องเปิดผ่านเซิร์ฟเวอร์ ไม่ใช่เปิดไฟล์ตรงๆ</p><p>ให้พิมพ์ที่อยู่นี้ใน Chrome:</p><div class="url">http://localhost:8000/screen</div></section>';
+      } else if (!LANGS.includes(q.get('lang'))) {
+        // setup mode: build the link
+        $('#setup').hidden = false; $('#stage').hidden = true;
+        const link = () => {
+          const p = new URLSearchParams({ lang: $('#lang').value, pos: $('#pos').value, bg: $('#bg').value, fs: $('#fs').value, font: $('#font').value });
+          $('#fontPreview').style.fontFamily = `"${useFont($('#font').value)}", sans-serif`;
+          if ($('#band').checked) p.set('band', '1'); $('#fsv').textContent = $('#fs').value;
+          const u = location.origin + '/screen?' + p; $('#url').textContent = u; return u;
+        };
+        document.querySelectorAll('select,input').forEach(e => e.oninput = link); link();
+        $('#open').onclick = () => { location.href = link(); };
+        $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(link()); $('#copy').textContent = 'คัดลอกแล้ว'; } catch (_) {} };
+      } else {
+        const lang = q.get('lang'), cjk = ['zh', 'ko', 'ja'].includes(lang);
+        document.documentElement.classList.add('live');
+        const bg = q.get('bg');
+        document.documentElement.style.setProperty('--screen-bg', bg === 'green' ? '#00b140' : bg === 'transparent' ? 'transparent' : '#000');
+        $('#stage').className = 'stage ' + (q.get('pos') === 'top' ? 'top' : 'bottom');
+        document.documentElement.style.setProperty('--fs', Math.min(6, Math.max(1.5, Number(q.get('fs')) || 3)));
+        if (q.get('band')) $('#cap').classList.add('band');
+        useFont(q.get('font') || 'sukhumvit');
+
+        // split a long translation into short subtitle chunks
+        const MAX = cjk ? 34 : (lang === 'th' ? 60 : 84);
+        const wordSeg = new Intl.Segmenter(lang, { granularity: 'word' });
+        function split(text) {
+          const out = []; let rest = text.trim();
+          while (rest.length > MAX) {
+            let cut = -1;
+            for (const p of ['。', '！', '？', '. ', '! ', '? ', '、', '，', ', ', ' ']) cut = Math.max(cut, rest.lastIndexOf(p, MAX));
+            if (cut <= MAX * .35) {
+              // no space/punctuation (normal in Thai/CJK): cut at the last word boundary instead of mid-word
+              cut = -1;
+              for (const s of wordSeg.segment(rest)) { if (s.index > 0 && s.index <= MAX) cut = s.index - 1; if (s.index > MAX) break; }
+            }
+            cut = cut > 0 ? cut + 1 : MAX;
+            out.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim();
+          }
+          if (rest) out.push(rest); return out;
+        }
+        const queue = []; let busy = false, hideTimer;
+        const holdMs = t => Math.max(1800, t.length * (cjk ? 230 : 62)) / (queue.length > 3 ? 2.2 : queue.length > 1 ? 1.4 : 1);
+        function next() {
+          if (!queue.length) { busy = false; hideTimer = setTimeout(() => $('#cap').classList.remove('show'), 2500); return; }
+          busy = true; clearTimeout(hideTimer);
+          const t = queue.shift(); $('#cap').textContent = t; $('#cap').classList.add('show');
+          setTimeout(next, holdMs(t));
+        }
+        let first = true;
+        const es = new EventSource('/events?lang=' + lang);
+        es.onmessage = ({ data }) => {
+          const e = JSON.parse(data);
+          if (e.type !== 'text.segment' || !e.text) return;
+          if (e.replay) return; // never show replayed old lines on a projector
+          queue.push(...split(e.text)); if (!busy) next();
+        };
+      }
+    </script>
+  </body>
+</html>
