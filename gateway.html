@@ -4,119 +4,354 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Church Audio Gateway</title>
+    <link rel="stylesheet" href="/app.css" />
     <style>
-      :root { font-family: system-ui, sans-serif; color: #182235; }
-      body { max-width: 760px; margin: 0 auto; padding: 24px; background: #f5f7fb; }
-      header, section { background: white; border-radius: 16px; padding: 20px; margin: 16px 0; box-shadow: 0 4px 18px #18243a12; }
-      h1 { margin: 0 0 4px; } h2 { margin-top: 0; }
-      .muted { color: #687386; } .status { color: #16834b; font-weight: 700; }
-      label { display: block; margin: 12px 0 6px; font-weight: 700; }
-      input, select { width: 100%; box-sizing: border-box; padding: 11px; border: 1px solid #ccd3df; border-radius: 10px; font-size: 1rem; }
-      button { border: 0; border-radius: 10px; padding: 11px 16px; background: #3157d5; color: white; font-size: 1rem; cursor: pointer; margin: 8px 8px 0 0; }
-      button.danger { background: #bd3c49; } button.secondary { background: #eef1f7; color: #27334a; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-      .metric { background: #f7f8fc; border-radius: 12px; padding: 14px; } .metric strong { display: block; font-size: 1.35rem; margin-top: 4px; }
-      #message { margin-top: 12px; min-height: 1.5em; }
+      #meter { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; margin-top: 12px; } #meter i { display: block; height: 100%; width: 0; background: var(--ok); }
+      #interim { min-height: 1.5em; color: var(--mute); font-style: italic; }
     </style>
   </head>
   <body>
     <header>
       <h1>Church Audio Gateway</h1>
-      <div class="muted">เครื่องนี้ใช้รับเสียงจาก USB, Line-in หรือไมโครโฟน แล้วส่งเข้า Church Translation</div>
+      <div class="muted">ใช้ Chrome บนคอมพิวเตอร์ที่รับเสียงจากมิกเซอร์ (ตั้งเป็นอุปกรณ์รับเสียงเริ่มต้นของระบบ)</div>
     </header>
     <section>
-      <h2>ตั้งค่าแหล่งเสียง</h2>
+      <h2>ตั้งค่า</h2>
+      <label for="token">รหัสผู้ดูแล (PUBLISH_TOKEN)</label>
+      <input id="token" type="password" autocomplete="off" />
       <label for="name">ชื่อเครื่อง</label>
-      <input id="name" value="Church Audio Gateway 1" />
-      <label for="source">แหล่งเสียง</label>
-      <select id="source">
-        <option value="browser">ไมโครโฟนของ Browser</option>
-        <option value="usb">USB Audio Interface</option>
-        <option value="linein">Line-in</option>
-      </select>
+      <input id="name" type="text" value="Church Audio Gateway 1" />
+      <label for="device">อุปกรณ์รับเสียง</label>
+      <select id="device"><option value="">ค่าเริ่มต้นของระบบ</option></select>
+      <p class="muted" id="deviceNote">เลือก Sound card / USB Audio ที่ต่อจากมิกเซอร์ (ชื่ออุปกรณ์จะแสดงหลังอนุญาตไมค์ครั้งแรก)</p>
       <label for="speechLanguage">ภาษาที่พูดเข้าไมค์</label>
       <select id="speechLanguage">
         <option value="th-TH">ไทย</option><option value="en-US">English</option><option value="zh-CN">中文</option><option value="ko-KR">한국어</option><option value="ja-JP">日本語</option>
       </select>
       <label>ภาษาที่ต้องการแปล</label>
       <div class="grid"><label><input type="checkbox" value="th" checked /> ไทย</label><label><input type="checkbox" value="en" checked /> English</label><label><input type="checkbox" value="zh" checked /> 中文</label><label><input type="checkbox" value="ko" checked /> 한국어</label><label><input type="checkbox" value="ja" checked /> 日本語</label></div>
-      <p class="muted">เริ่มจากโหมด Browser เพื่อทดสอบฟรีได้ทันที หากใช้ USB/Line-in ให้เลือกอุปกรณ์เสียงตอนเบราว์เซอร์ถามสิทธิ์</p>
-      <button id="start">เริ่มส่งเสียง</button>
-      <button id="stop" class="danger" disabled>หยุดส่งเสียง</button>
+      <p class="muted">เฟสนี้ใช้การถอดเสียงของ Chrome (ยังเลือกภาษาต้นทางเอง) การแปลทำที่เซิร์ฟเวอร์</p>
+      <button id="prepare" class="secondary">เตรียมตัวแปล (โหลดโมเดลครั้งแรก)</button>
+      <button id="start">เริ่มส่ง</button>
+      <button id="stop" class="danger" disabled>หยุด</button>
       <div id="message" class="muted"></div>
     </section>
     <section>
       <h2>สถานะ</h2>
       <div class="grid">
-        <div class="metric">การเชื่อมต่อ<strong id="status" class="status">ยังไม่เริ่ม</strong></div>
-        <div class="metric">ชิ้นเสียงที่ส่ง<strong id="chunks">0</strong></div>
-        <div class="metric">ข้อมูลที่ส่ง<strong id="bytes">0 B</strong></div>
+        <div class="metric">การเชื่อมต่อ<strong id="status">ยังไม่เริ่ม</strong></div>
+        <div class="metric">ประโยคที่ส่ง<strong id="sent">0</strong></div>
+        <div class="metric">ผู้ฟังออนไลน์<strong id="listeners">–</strong></div>
+        <div class="metric">การถอดเสียง<strong id="asr">–</strong></div>
       </div>
+      <label>ตัวแปลแต่ละภาษา</label>
+      <div id="engines" class="grid"><div class="metric">กด "เริ่มส่ง" เพื่อเตรียมตัวแปล</div></div>
+      <p id="queue" class="muted"></p>
+      <div id="meter"><i></i></div>
+      <p id="interim"></p>
     </section>
     <script>
-      let recorder, stream, recognition;
-      const $ = id => document.querySelector(id);
-      const targetCodes = () => [...document.querySelectorAll('input[type=checkbox]:checked')].map(input => input.value);
+      const $ = s => document.querySelector(s);
+      let stream, recognition, running = false, hb, audioCtx, raf, sent = 0;
+      try { $('#token').value = sessionStorage.getItem('token') || ''; } catch (_) {}
+      const targets = () => [...document.querySelectorAll('input[type=checkbox]:checked')].map(i => i.value);
       const sourceCode = () => $('#speechLanguage').value.slice(0, 2);
-      const formatBytes = n => n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`;
-      async function register() {
-        await fetch('/api/gateway/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: $('#name').value, source: $('#source').value}) });
+      const api = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + $('#token').value }, body: JSON.stringify(body) });
+      const msg = t => { $('#message').textContent = t; };
+
+      async function heartbeat() {
+        try {
+          const r = await api('/api/gateway/heartbeat', { name: $('#name').value, source_lang: sourceCode() });
+          $('#status').textContent = r.ok ? 'เชื่อมต่อแล้ว' : (r.status === 401 ? 'รหัสไม่ถูกต้อง' : 'ผิดพลาด ' + r.status);
+          const s = await fetch('/api/status').then(x => x.json()); $('#listeners').textContent = s.listeners;
+        } catch (_) { $('#status').textContent = 'ติดต่อเซิร์ฟเวอร์ไม่ได้'; }
       }
-      async function sendChunk(blob) {
-        const response = await fetch('/api/gateway/audio', { method: 'POST', headers: {'Content-Type': blob.type || 'audio/webm'}, body: blob });
-        if (!response.ok) throw new Error('ส่งเสียงไม่สำเร็จ');
-        const data = await response.json();
-        $('#chunks').textContent = Number($('#chunks').textContent) + 1;
-        $('#bytes').textContent = formatBytes(Number($('#bytes').dataset.total || 0) + data.bytes);
-        $('#bytes').dataset.total = Number($('#bytes').dataset.total || 0) + data.bytes;
+      // Chrome's on-device Translator API: free, no quota, text never leaves this computer.
+      // Languages it cannot do fall back to the server provider automatically.
+      const NAMES = { th: 'ไทย', en: 'English', zh: '中文', ko: '한국어', ja: '日本語', asr: '🎙️ ถอดเสียง' };
+      const translators = {};
+      function setEngine(lang, text) {
+        let el = document.querySelector(`#engines [data-l="${lang}"]`);
+        if (!el) { el = document.createElement('div'); el.className = 'metric'; el.dataset.l = lang; $('#engines').append(el); }
+        el.innerHTML = ''; el.append(NAMES[lang] || lang); const s = document.createElement('strong'); s.textContent = text; el.append(s);
       }
-      async function translateAndPublish(text) {
-        const results = await Promise.all(targetCodes().map(async target => {
-          if (target === sourceCode()) return [target, text];
+      // On-device speech recognition (Chrome): no audio sent to Google, no network hiccups.
+      const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const asrLocalAvailable = async () => {
+        try { return SRClass && SRClass.available && (await SRClass.available({ langs: [$('#speechLanguage').value], processLocally: true })) === 'available'; }
+        catch (_) { return false; }
+      };
+      function prepareAsr() {
+        if (!SRClass || !SRClass.install) { setEngine('asr', 'คลาวด์ (Chrome นี้ไม่มีแบบในเครื่อง)'); return Promise.resolve(); }
+        setEngine('asr', 'กำลังเตรียม…');
+        let p; // call install() first and synchronously: the download needs the click's user gesture
+        try { p = SRClass.install({ langs: [$('#speechLanguage').value], processLocally: true }); } catch (e) { p = Promise.reject(e); }
+        return Promise.resolve(p).then(ok => setEngine('asr', ok === false ? 'คลาวด์ (ติดตั้งไม่สำเร็จ)' : 'ในเครื่อง ✓'),
+          e => setEngine('asr', e && e.name === 'NotAllowedError' ? 'ยังไม่โหลด — กด "เตรียมตัวแปล" อีกครั้ง' : 'คลาวด์ (' + ((e && e.name) || 'error') + ')'));
+      }
+      function prepareTranslators() {
+        for (const k in translators) delete translators[k];
+        $('#engines').innerHTML = '';
+        const asrJob = prepareAsr();
+        const src = sourceCode(), list = targets().filter(t => t !== src);
+        if (!('Translator' in self)) { list.forEach(t => setEngine(t, 'เซิร์ฟเวอร์ (Chrome นี้ไม่มีตัวแปลในเครื่อง)')); return Promise.resolve(); }
+        // Call create() for every language synchronously, with no await before it: Chrome only
+        // allows a model download within a few seconds of a real click (user activation).
+        const jobs = list.map(t => {
+          setEngine(t, 'กำลังเตรียม…');
+          let p;
           try {
-            const params = new URLSearchParams({q: text.slice(0, 450), langpair: `${sourceCode()}|${target}`});
-            const response = await fetch(`https://api.mymemory.translated.net/get?${params}`);
-            const data = await response.json();
-            return [target, data.responseData && data.responseData.translatedText ? data.responseData.translatedText : text];
-          } catch (_) {
-            return [target, `[ยังแปล ${target} ไม่สำเร็จ] ${text}`];
-          }
-        }));
-        const translations = Object.fromEntries(results);
-        await fetch('/api/translation', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({source_text: text, translations})});
-        $('#message').textContent = 'รับเสียงและส่งคำแปลแล้ว: ' + text;
+            p = Translator.create({ sourceLanguage: src, targetLanguage: t, monitor(m) {
+              m.addEventListener('downloadprogress', e => setEngine(t, `กำลังโหลด ${Math.round(e.loaded * 100)}%`));
+            } });
+          } catch (e) { p = Promise.reject(e); }
+          return p.then(tr => { translators[t] = tr; setEngine(t, 'ในเครื่อง ✓'); },
+            e => {
+              console.warn('Translator', src, '->', t, e);
+              // Chrome downloads roughly one language model per click; the rest need another click
+              setEngine(t, e.name === 'NotAllowedError' ? 'ยังไม่โหลด — กด "เตรียมตัวแปล" อีกครั้ง' : `เซิร์ฟเวอร์ (${e.name})`);
+            });
+        });
+        return Promise.all([asrJob, ...jobs]);
       }
-      function startSpeech() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) throw new Error('Chrome รุ่นนี้ไม่รองรับการถอดเสียง');
-        recognition = new SpeechRecognition();
-        recognition.lang = $('#speechLanguage').value; recognition.continuous = true; recognition.interimResults = false;
-        recognition.onresult = event => {
-          const result = event.results[event.results.length - 1];
-          if (result.isFinal && result[0].transcript.trim()) translateAndPublish(result[0].transcript.trim()).catch(error => $('#message').textContent = 'แปลไม่สำเร็จ: ' + error.message);
+      // Each language is published on its own as soon as it is ready, so the source-language subtitle
+      // and fast languages never wait for the slowest one. Chrome's on-device translator works through
+      // a queue, so with many languages the backlog shows up in "inflight".
+      let inflight = 0;
+      const post = async body => {
+        const r = await api('/api/segment', body);
+        if (!r.ok) throw new Error(r.status === 401 ? 'รหัสไม่ถูกต้อง' : 'ส่งไม่สำเร็จ (' + r.status + ')');
+      };
+      async function publish(text) {
+        const src = sourceCode(), all = targets(), base = { source_text: text, source_lang: src };
+        const local = all.filter(l => l !== src && translators[l]);
+        const direct = all.filter(l => l === src || !translators[l]); // source passthrough + server fallback
+        if (direct.length) await post({ ...base, targets: direct });
+        sent++; $('#sent').textContent = sent;
+        msg(`ส่งแล้ว: ${text}`);
+        for (const lang of local) {
+          inflight++; showQueue();
+          const t0 = performance.now();
+          translators[lang].translate(text)
+            .then(t => post({ ...base, targets: [lang], translations: { [lang]: t } }))
+            .catch(() => post({ ...base, targets: [lang] }).catch(() => {})) // server provider fallback
+            .finally(() => { inflight--; lastMs[lang] = Math.round(performance.now() - t0); showQueue(); });
+        }
+      }
+      const lastMs = {};
+      const showQueue = () => {
+        const parts = Object.entries(lastMs).map(([l, ms]) => `${l} ${ms}ms`).join(' · ');
+        $('#queue').textContent = `รอแปล ${inflight} งาน` + (parts ? ` — ล่าสุด: ${parts}` : '');
+      };
+      let asrMode = '';
+      function startSpeech(local = false) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) throw new Error('ต้องใช้ Chrome ที่รองรับการถอดเสียง');
+        recognition = new SR();
+        recognition.lang = $('#speechLanguage').value; recognition.continuous = true; recognition.interimResults = true;
+        asrMode = 'คลาวด์';
+        if (local) {
+          try { recognition.processLocally = true; asrMode = 'ในเครื่อง'; } catch (_) {}
+          // No phrase biasing: a church word list (boost 5) made the recognizer insert "Hallelujah" /
+          // "Holy Spirit" where nobody said them. Revisit only with a small, low-boost, per-church list.
+        }
+        // Chrome can wait a long time before marking a result final. If speech pauses for
+        // COMMIT_MS we publish the interim text ourselves, then only send the tail when Chrome finalizes.
+        const COMMIT_MS = 1300, committed = {}, pending = {}; let timer;
+        // Thai/CJK have no spaces between words, so never cut a tail mid-word: find where the new
+        // text diverges from what we already sent, then step back to the start of that word.
+        const seg = new Intl.Segmenter($('#speechLanguage').value, { granularity: 'word' });
+        const wordStartAt = (text, p) => {
+          for (const s of seg.segment(text)) if (p >= s.index && p < s.index + s.segment.length) return s.index;
+          return p;
         };
-        recognition.onerror = event => { $('#message').textContent = 'ถอดเสียงไม่สำเร็จ: ' + event.error; };
-        recognition.onend = () => { if (recorder && recorder.state !== 'inactive') recognition.start(); };
+        const tailFrom = (full, done) => {
+          if (!done) return full;
+          let n = 0; while (n < done.length && n < full.length && done[n] === full[n]) n++;
+          if (n < done.length * 0.8) {
+            // Chrome rewrote earlier words, so a plain prefix match would resend the whole sentence.
+            // Re-sync on the last few words we already sent and send only what follows them.
+            const starts = [];
+            for (const s of seg.segment(done)) if (s.isWordLike) starts.push(s.index);
+            for (let k = Math.min(3, starts.length); k >= 1; k--) {
+              const anchor = done.slice(starts[starts.length - k]).trim();
+              if (anchor.length < 2) continue;
+              const at = full.lastIndexOf(anchor);
+              if (at >= 0) {
+                const p = at + anchor.length;
+                return p >= full.length ? '' : full.slice(wordStartAt(full, p)).trim();
+              }
+            }
+          }
+          if (n >= full.length) return '';
+          return full.slice(wordStartAt(full, n)).trim();
+        };
+        const send = t => queueText(t);
+        recognition.onstart = () => {
+          for (const k in committed) delete committed[k]; for (const k in pending) delete pending[k];
+          asrActive = true; lastResult = Date.now(); showAsr();
+        };
+        recognition.onresult = ev => {
+          lastResult = Date.now();
+          let interim = '';
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            const r = ev.results[i], t = r[0].transcript.trim(), done = committed[i] || '';
+            if (r.isFinal) {
+              delete pending[i];
+              const tail = tailFrom(t, done);
+              if (tail) send(tail);
+              delete committed[i];
+            } else {
+              pending[i] = t;
+              interim += tailFrom(t, done) + ' ';
+            }
+          }
+          // Continuous speech never pauses long enough to commit, so also commit while talking once the
+          // unsent part is long: send up to the start of the last word (Chrome may still revise that word).
+          const force = FORCE_LEN[sourceCode()] || 60;
+          for (const i in pending) {
+            const t = pending[i], done = committed[i] || '';
+            if (tailFrom(t, done).length < force) continue;
+            // hold back the last two words: an unfinished word can be split into several segments
+            const starts = [];
+            for (const s of seg.segment(t)) if (s.isWordLike) starts.push(s.index);
+            const cut = starts.length > 2 ? starts[starts.length - 2] : 0;
+            if (!cut) continue;
+            const stable = t.slice(0, cut);
+            const tail = tailFrom(stable, done);
+            if (tail) { send(tail); committed[i] = stable; }
+          }
+          $('#interim').textContent = interim;
+          clearTimeout(timer);
+          timer = setTimeout(commitPending, COMMIT_MS);
+        };
+        // Send every not-yet-sent interim word. Also called when Chrome ends a session or we reset it:
+        // Chrome drops unfinished interim text on restart, so this is the only chance to keep it.
+        commitPending = () => {
+          clearTimeout(timer);
+          for (const i in pending) {
+            const t = pending[i], tail = tailFrom(t, committed[i] || '');
+            if (tail) { send(tail); committed[i] = t; }
+          }
+          $('#interim').textContent = '';
+        };
+        recognition.onerror = ev => { if (ev.error !== 'no-speech' && ev.error !== 'aborted') { lastAsrError = ev.error; showAsr(); } };
+        // Chrome ends recognition on its own (silence, network blips, background tab). Restart with a
+        // short delay; restarting synchronously inside onend sometimes fails silently.
+        // restart immediately to keep the gap where speech is lost as short as possible; if Chrome
+        // refuses the immediate start, restartAsr() retries after a short delay
+        recognition.onend = () => { commitPending(); asrActive = false; showAsr(); if (running) restartAsr(); };
+        startRec();
+      }
+      // Feed the chosen input device (sound card) to the recognizer. Chrome versions that accept a
+      // MediaStreamTrack in start() use it; older ones throw, and we fall back to the system default mic.
+      let trackSupported = true;
+      function startRec() {
+        const track = stream && stream.getAudioTracks()[0];
+        if (track && trackSupported) {
+          try { recognition.start(track); return; }
+          catch (e) {
+            if (e.name === 'InvalidStateError') throw e; // already running: caller retries
+            trackSupported = false;
+            if ($('#device').value) msg('⚠️ Chrome นี้ส่งเสียงจากอุปกรณ์ที่เลือกเข้าตัวถอดเสียงไม่ได้ — ตั้ง Sound card เป็นอินพุตเริ่มต้นใน การตั้งค่าระบบ → เสียง');
+          }
+        }
         recognition.start();
+      }
+      async function listDevices() {
+        try {
+          const keep = $('#device').value || (() => { try { return localStorage.getItem('device') || ''; } catch (_) { return ''; } })();
+          const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.deviceId !== 'default');
+          $('#device').innerHTML = '<option value="">ค่าเริ่มต้นของระบบ</option>';
+          devs.forEach((d, i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `อุปกรณ์ ${i + 1}`; $('#device').append(o); });
+          if ([...$('#device').options].some(o => o.value === keep)) $('#device').value = keep;
+        } catch (_) {}
+      }
+      listDevices();
+      navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener('devicechange', listDevices);
+      $('#device').onchange = () => { try { localStorage.setItem('device', $('#device').value); } catch (_) {} };
+      // Merge short fragments ("ผม", "มัน", "คือ") into one sentence before translating: send when the
+      // buffer is long enough, or after FLUSH_MS with no new words.
+      const FLUSH_MS = 1200, MIN_LEN = { th: 20, en: 30, ko: 15, zh: 8, ja: 10 };
+      const FORCE_LEN = { th: 32, en: 45, ko: 22, zh: 14, ja: 16 };
+      let commitPending = () => {};
+      let textBuf = '', flushTimer, bufSince = 0;
+      function queueText(t) {
+        const glue = ['zh', 'ja'].includes(sourceCode()) ? '' : ' ';
+        if (!textBuf) bufSince = Date.now();
+        textBuf = textBuf ? textBuf + glue + t : t;
+        clearTimeout(flushTimer);
+        if (textBuf.length >= (MIN_LEN[sourceCode()] || 30)) flushText();
+        else flushTimer = setTimeout(() => flushText(false), FLUSH_MS);
+      }
+      function flushText(force = true) {
+        clearTimeout(flushTimer);
+        // a lone short word ("ครับ", "ที่") waits up to 4 s to join the next words
+        const short = textBuf.length < (MIN_LEN[sourceCode()] || 20) / 2;
+        if (!force && short && Date.now() - bufSince < 4000) { flushTimer = setTimeout(() => flushText(false), 800); return; }
+        const t = textBuf.trim(); textBuf = '';
+        if (t.length > 1) publish(t).catch(e => msg(e.message));
+      }
+      let asrActive = false, asrRestarts = 0, lastAsrError = '', lastResult = 0, lastLoud = 0, watchdog;
+      const showAsr = () => { $('#asr').textContent = (asrMode ? asrMode + ' · ' : '') + (asrActive ? 'กำลังฟัง' : (running ? 'กำลังเริ่มใหม่…' : 'หยุด')) + (asrRestarts ? ` · เริ่มใหม่ ${asrRestarts}` : '') + (lastAsrError ? ` · ${lastAsrError}` : ''); };
+      let recentRestarts = [];
+      function restartAsr() {
+        if (!running || asrActive) return;
+        // on-device model refused (not installed / unsupported): fall back to the cloud recognizer
+        if (asrMode === 'ในเครื่อง' && ['language-not-supported', 'service-not-allowed'].includes(lastAsrError)) {
+          lastAsrError = ''; try { recognition.abort(); } catch (_) {}
+          startSpeech(false); return;
+        }
+        // guard against a tight loop when Chrome ends the session right away every time
+        const now = Date.now(); recentRestarts = recentRestarts.filter(t => now - t < 10000);
+        if (recentRestarts.length >= 6) { setTimeout(restartAsr, 2000); return; }
+        recentRestarts.push(now);
+        try { startRec(); asrRestarts++; } catch (_) { setTimeout(restartAsr, 300); }
+        showAsr();
+      }
+      function startWatchdog() {
+        clearInterval(watchdog);
+        watchdog = setInterval(() => {
+          if (!running) return;
+          if (!asrActive) return restartAsr();
+          // mic hears speech but no text for 15 s -> recognizer is stuck; abort so onend restarts it
+          if (lastLoud - lastResult > 15000) { lastResult = Date.now(); commitPending(); try { recognition.abort(); } catch (_) {} }
+        }, 5000);
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (running && document.hidden) msg('⚠️ แท็บ Gateway ถูกซ่อน Chrome อาจหยุดถอดเสียง — เปิดหน้าจอซับในหน้าต่างอื่นแทนการสลับแท็บ');
+      });
+      function startMeter() {
+        audioCtx = new AudioContext(); const an = audioCtx.createAnalyser(); an.fftSize = 512;
+        audioCtx.createMediaStreamSource(stream).connect(an); const buf = new Uint8Array(an.fftSize);
+        const tick = () => { an.getByteTimeDomainData(buf); let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v - 128)); if (m > 12) lastLoud = Date.now(); $('#meter i').style.width = Math.min(100, m * 1.6) + '%'; raf = requestAnimationFrame(tick); };
+        tick();
       }
       $('#start').onclick = async () => {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({audio: true});
-          await register();
-          recorder = new MediaRecorder(stream);
-          recorder.ondataavailable = event => { if (event.data.size) sendChunk(event.data).catch(error => $('#message').textContent = error.message); };
-          recorder.start(2000);
-          startSpeech();
-          $('#status').textContent = 'กำลังส่งเสียง'; $('#message').textContent = 'กำลังส่งเสียงจากอุปกรณ์นี้เข้า gateway';
-          $('#start').disabled = true; $('#stop').disabled = false;
-        } catch (error) { $('#message').textContent = 'เปิดไมโครโฟนไม่ได้: ' + error.message; }
+          if (!$('#token').value) throw new Error('กรอกรหัสผู้ดูแลก่อน');
+          try { sessionStorage.setItem('token', $('#token').value); } catch (_) {}
+          if (!targets().length) throw new Error('เลือกภาษาที่จะแปลอย่างน้อยหนึ่งภาษา');
+          const prep = prepareTranslators(); // must start inside the click: model download needs a user gesture
+          const dev = $('#device').value;
+          // a mixer feed is already clean: room-mic processing (echo cancel, noise suppression, auto gain) only hurts it
+          stream = await navigator.mediaDevices.getUserMedia({ audio: dev
+            ? { deviceId: { exact: dev }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            : true });
+          listDevices(); // labels become visible once permission is granted
+          prep.catch(() => {});
+          const local = await asrLocalAvailable();
+          running = true; asrRestarts = 0; lastAsrError = ''; startMeter(); startSpeech(local); startWatchdog(); await heartbeat(); hb = setInterval(heartbeat, 5000);
+          $('#start').disabled = true; $('#stop').disabled = false; msg('กำลังฟังเสียง…');
+        } catch (e) { running = false; msg(e.message); }
       };
+      $('#prepare').onclick = () => { prepareTranslators(); };
       $('#stop').onclick = () => {
-        if (recorder && recorder.state !== 'inactive') recorder.stop();
+        commitPending(); flushText(); running = false; clearInterval(hb); clearInterval(watchdog); cancelAnimationFrame(raf);
         if (recognition) recognition.stop();
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        $('#status').textContent = 'หยุดแล้ว'; $('#message').textContent = 'หยุดส่งเสียงแล้ว';
-        $('#start').disabled = false; $('#stop').disabled = true;
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (audioCtx) audioCtx.close();
+        $('#status').textContent = 'หยุดแล้ว'; $('#start').disabled = false; $('#stop').disabled = true; msg('หยุดแล้ว');
       };
     </script>
   </body>

@@ -4,19 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Church Translation — ผู้ดูแล</title>
+    <link rel="stylesheet" href="/app.css" />
     <style>
-      :root { font-family: system-ui, sans-serif; color: #182235; }
-      body { max-width: 900px; margin: 0 auto; padding: 24px; background: #f5f7fb; }
-      header, section { background: white; border-radius: 16px; padding: 20px; margin: 16px 0; box-shadow: 0 4px 18px #18243a12; }
-      h1 { margin: 0 0 4px; } h2 { margin-top: 0; }
-      .muted { color: #687386; } .status { color: #16834b; font-weight: 700; }
-      label { display: block; margin: 12px 0 6px; font-weight: 700; }
-      input, select { width: 100%; box-sizing: border-box; padding: 11px; border: 1px solid #ccd3df; border-radius: 10px; font-size: 1rem; }
-      button { border: 0; border-radius: 10px; padding: 11px 16px; background: #3157d5; color: white; font-size: 1rem; cursor: pointer; margin: 8px 8px 0 0; }
-      button.secondary { background: #eef1f7; color: #27334a; } button.danger { background: #bd3c49; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-      .metric { background: #f7f8fc; border-radius: 12px; padding: 14px; } .metric strong { display: block; font-size: 1.5rem; margin-top: 4px; }
-      #message { margin-top: 12px; min-height: 1.5em; }
+      #meter { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; margin-top: 12px; } #meter i { display: block; height: 100%; width: 0; background: var(--ok); }
+      #interim { min-height: 1.5em; color: var(--mute); font-style: italic; }
     </style>
   </head>
   <body>
@@ -110,8 +101,9 @@
       };
       async function refreshGateway() {
         try {
-          const gateway = await fetch('/api/gateway/status').then(response => response.json());
-          document.querySelector('#gatewayStatus').textContent = gateway.connected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ';
+          const s = await fetch('/api/status').then(response => response.json());
+          document.querySelector('#gatewayStatus').textContent = s.gateway_connected ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ';
+          document.querySelector('#listeners').textContent = s.listeners;
         } catch (_) {}
       }
       refreshGateway();

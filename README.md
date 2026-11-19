@@ -1,31 +1,33 @@
-# Church Translation System — MVP 0.1
+# Church Translation — Phase A
 
-นี่คือ vertical slice แรกที่รันได้จริงในเครื่อง: เว็บผู้ฟังเชื่อมต่อ WebSocket และรับข้อความแปลสดแบบจำลองจากเซิร์ฟเวอร์ทุก 5 วินาที
+เซิร์ฟเวอร์ Python (stdlib ล้วน, asyncio) — ถอดเสียงยังใช้ Chrome ที่ gateway, การแปลทำที่เซิร์ฟเวอร์
 
-## เริ่มใช้งานแบบไม่ต้องติดตั้งโปรแกรมเพิ่ม
+## รัน
 
 ```bash
-python3 server.py
+PUBLISH_TOKEN=รหัสลับของคุณ python3 server.py
 ```
 
-เปิด `http://127.0.0.1:8000` แล้วกด **เชื่อมต่อระบบ**
+ถ้าไม่ตั้ง `PUBLISH_TOKEN` เซิร์ฟเวอร์จะสุ่มให้และพิมพ์ใน log
 
-ตรวจสุขภาพระบบได้ที่ `http://localhost:3000/health`
+- ผู้ฟัง: `/` (เปิดได้ทุกคน) · Gateway: `/gateway` (ต้องกรอก token) · แอดมิน: `/admin`
+- `GOOGLE_TRANSLATE_API_KEY` — ถ้าตั้งไว้ จะใช้ Google Cloud Translation อัตโนมัติ (ส่ง key ทาง header ไม่ใส่ใน URL/log)
+- `TRANSLATION_PROVIDER=google | mymemory | echo` — บังคับเลือกเอง (ไม่มี key จะใช้ `mymemory` ซึ่งฟรีแต่โควตาหมดเร็ว ใช้ทดสอบเท่านั้น)
+- `MAX_LISTENERS` (ค่าเริ่มต้น 2000)
 
-## สิ่งที่ทำแล้ว
+## ทดสอบ
 
-- HTTP server สำหรับหน้าเว็บผู้ฟัง
-- Real-time event endpoint ที่ `/events`
-- session จำลองหนึ่ง session
-- event แบบ `session.status`, `subscribed`, และ `text.segment`
-- เลือกภาษาผู้ฟัง: อังกฤษ จีน เกาหลี ญี่ปุ่น ไทย
+```bash
+python3 -I -m unittest discover -s tests
+```
 
-## สิ่งที่ต้องต่อในขั้นถัดไป
+## API
 
-- รับเสียงจริงจากมิกเซอร์/encoder
-- เชื่อม ASR เพื่อถอดเสียงและตรวจจับภาษาอัตโนมัติ
-- เชื่อม Translation และ TTS provider
-- เพิ่ม PostgreSQL, ผู้ใช้, คริสตจักรหลาย tenant และ authentication
-- ส่ง audio segments ให้ผู้ฟังเล่นจริง
+- `GET /events?lang=th|en|zh|ko|ja` — SSE รายภาษา มี `id` และรองรับ `Last-Event-ID`
+- `POST /api/segment` (Bearer token) — `{source_text, source_lang, targets[]}` → 202, แปลแบบขนาน
+- `POST /api/gateway/heartbeat` (Bearer token), `GET /api/status`, `GET /health`
 
-โค้ดนี้เป็น MVP สำหรับตรวจสอบการไหลของระบบ ไม่ใช่ระบบ production และยังไม่ได้เชื่อม AI หรือเสียงจริง
+## ยังไม่ได้ทำ
+
+ASR ฝั่งเซิร์ฟเวอร์ + ตรวจภาษาอัตโนมัติ, TTS, ฐานข้อมูล/หลาย tenant, ทดสอบโหลด 500 ผู้ฟัง
+`server.js` / `package.json` เป็นโค้ดเดโมรุ่นเก่าที่ไม่ได้ใช้แล้ว
